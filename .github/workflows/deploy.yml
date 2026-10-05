@@ -1,4 +1,4 @@
-name: Deploy Bridge Frontend
+name: Deploy Hive Workflow Frontend
 
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
           script: |
             set -e
 
-            cd /home/bridgeapi_frontend/Bridge-workflow
+            cd /home/bridge_frontend
 
             echo "======================================"
             echo "Pulling latest code..."
