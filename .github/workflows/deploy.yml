@@ -24,10 +24,11 @@ jobs:
             cd /home/bridge_frontend
 
             echo "======================================"
-            echo "Pulling latest code..."
+            echo "Fetching latest code..."
             echo "======================================"
 
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
 
             echo "======================================"
             echo "Installing dependencies..."
