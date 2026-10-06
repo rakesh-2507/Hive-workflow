@@ -117,19 +117,17 @@ function TaskDetails({
     task?.document_type === "AssetPurchaseRequest" ||
     task?.task_type === "Asset Purchase Request";
 
-  /* ======================================================
-     LOAD ASSET PURCHASE TASK
-  ====================================================== */
+  const isAssetRepairTask =
+    task?.document_type === "AssetRepairRequest" ||
+    task?.task_type === "Asset Repair Request";
+
+  const isAssetRequestTask =
+    isAssetPurchaseTask || isAssetRepairTask;
 
   useEffect(() => {
-    if (
-      !task ||
-      (task.document_type !== "AssetPurchaseRequest" &&
-        task.task_type !== "Asset Purchase Request")
-    ) {
+    if (!task || !isAssetRequestTask) {
       return;
     }
-
     const currentTask = task;
 
     let cancelled = false;
@@ -153,7 +151,7 @@ function TaskDetails({
 
         if (!details) {
           throw new Error(
-            "Asset purchase task data was not returned in the expected format.",
+            "Asset request task data was not returned in the expected format.",
           );
         }
 
@@ -164,7 +162,7 @@ function TaskDetails({
         }
 
         console.error(
-          "Failed to load asset purchase task:",
+          "Failed to load asset request task:",
           err,
         );
 
@@ -173,7 +171,7 @@ function TaskDetails({
         setAssetTaskError(
           err instanceof Error
             ? err.message
-            : "Failed to load asset purchase request.",
+            : "Failed to load asset request.",
         );
       } finally {
         if (!cancelled) {
@@ -187,7 +185,7 @@ function TaskDetails({
     return () => {
       cancelled = true;
     };
-  }, [task]);
+  }, [task, isAssetRequestTask]);
 
   /* ======================================================
      EMPTY STATE
@@ -507,9 +505,9 @@ function TaskDetails({
 
           {canTakeAction && (
             <div className="flex shrink-0 items-center gap-2">
-              {/* View File only when an asset purchase has a reference file */}
+              {/* View File when an asset purchase or repair has a reference file */}
 
-              {isAssetPurchaseTask &&
+              {isAssetRequestTask &&
                 hasReferenceFile && (
                   <button
                     type="button"
@@ -521,9 +519,9 @@ function TaskDetails({
                   </button>
                 )}
 
-              {/* Edit is ONLY for non-asset-purchase tasks */}
+              {/* Edit is ONLY for non-asset-request tasks */}
 
-              {!isAssetPurchaseTask && (
+              {!isAssetRequestTask && (
                 <button
                   type="button"
                   onClick={() => onEdit(task)}
@@ -628,7 +626,7 @@ function TaskDetails({
               DATES
           ================================================== */}
 
-          {!isAssetPurchaseTask && (
+          {!isAssetRequestTask && (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <DateInfo
                 icon={<CalendarDays size={16} />}
@@ -665,11 +663,13 @@ function TaskDetails({
               ASSET PURCHASE REQUEST DETAILS
           ================================================== */}
 
-          {isAssetPurchaseTask && (
+          {isAssetRequestTask && (
             <section>
               <div className="flex items-center justify-between gap-4">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                  Asset Purchase Request:
+                  {isAssetRepairTask
+                    ? "Asset Repair Request:"
+                    : "Asset Purchase Request:"}
                 </h3>
 
                 <div className="flex items-center gap-2">
@@ -813,6 +813,7 @@ function TaskDetails({
                       ================================================== */}
 
                       {assetDocumentNo &&
+                        isAssetPurchaseTask &&
                         (isAssetExecutive ||
                           isSeniorAssetManager) && (
                           <section>
@@ -930,7 +931,7 @@ function TaskDetails({
           {canTakeAction &&
             !isAssetExecutive &&
             !(isEmployee &&
-              isAssetPurchaseTask) && (
+              isAssetRequestTask) && (
               <section>
                 {actionMessage && (
                   <div className="mb-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300">
@@ -1136,12 +1137,16 @@ function TaskDetails({
 }
 
 /* ======================================================
-   EXTRACT ASSET PURCHASE TASK DETAILS
+   EXTRACT ASSET REQUEST TASK DETAILS
 ====================================================== */
 
 /**
  * Safely extracts the COMPLETE AssetPurchaseTaskDetails
  * from the API response.
+ *
+ * This same response shape is used by Asset Purchase and
+ * Asset Repair tasks. The existing type/API helper is kept
+ * unchanged so there is no API behavior change.
  *
  * Supported response structures:
  *
