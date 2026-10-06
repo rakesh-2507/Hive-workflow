@@ -3,18 +3,26 @@ import {
     CalendarDays,
     FileUp,
     Package,
+    Plus,
     Send,
+    Trash2,
     X,
 } from "lucide-react";
 
 import { createAssetPurchaseRequest } from "../../api/assetPurchase";
 
-interface FormData {
-    asset: string;
-    asset_type: string;
-    asset_description: string;
-    required_date: string;
-    purchase_reason: string;
+type ParameterType =
+    | "text"
+    | "textarea"
+    | "number"
+    | "date";
+
+interface RequestParameter {
+    id: string;
+    name: string;
+    type: ParameterType;
+    value: string;
+    required: boolean;
 }
 
 interface Props {
@@ -25,35 +33,65 @@ interface Props {
     ) => void;
 }
 
-const initialForm: FormData = {
-    asset: "",
-    asset_type: "",
-    asset_description: "",
-    required_date: "",
-    purchase_reason: "",
-};
+const createParameter = (): RequestParameter => ({
+    id: crypto.randomUUID(),
+    name: "",
+    type: "text",
+    value: "",
+    required: false,
+});
 
 function AssetPurchaseRequestForm({ onSuccess }: Props) {
-    const [formData, setFormData] = useState<FormData>(initialForm);
+    const [parameters, setParameters] = useState<
+        RequestParameter[]
+    >([]);
 
     const [referenceFile, setReferenceFile] =
         useState<File | null>(null);
 
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSubmitting, setIsSubmitting] =
+        useState(false);
+
     const [error, setError] = useState("");
-    const [successMessage, setSuccessMessage] = useState("");
+    const [successMessage, setSuccessMessage] =
+        useState("");
 
-    const handleChange = (
-        e: React.ChangeEvent<
-            HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-        >
-    ) => {
-        const { name, value } = e.target;
-
-        setFormData((prev) => ({
+    const addParameter = () => {
+        setParameters((prev) => [
             ...prev,
-            [name]: value,
-        }));
+            createParameter(),
+        ]);
+
+        setError("");
+        setSuccessMessage("");
+    };
+
+    const removeParameter = (id: string) => {
+        setParameters((prev) =>
+            prev.filter(
+                (parameter) => parameter.id !== id
+            )
+        );
+
+        setError("");
+        setSuccessMessage("");
+    };
+
+    const updateParameter = (
+        id: string,
+        field: keyof RequestParameter,
+        value: string | boolean
+    ) => {
+        setParameters((prev) =>
+            prev.map((parameter) =>
+                parameter.id === id
+                    ? {
+                          ...parameter,
+                          [field]: value,
+                      }
+                    : parameter
+            )
+        );
 
         setError("");
         setSuccessMessage("");
@@ -72,7 +110,6 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
     const removeFile = () => {
         setReferenceFile(null);
 
-        // Reset file input
         const fileInput = document.getElementById(
             "reference_file"
         ) as HTMLInputElement | null;
@@ -90,43 +127,78 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
         setError("");
         setSuccessMessage("");
 
-        if (!formData.asset.trim()) {
-            setError("Please enter asset name.");
+        if (parameters.length === 0) {
+            setError(
+                "Please add at least one request parameter."
+            );
             return;
         }
 
-        if (!formData.asset_type.trim()) {
-            setError("Please enter asset type.");
+        const hasEmptyName = parameters.some(
+            (parameter) => !parameter.name.trim()
+        );
+
+        if (hasEmptyName) {
+            setError(
+                "Please enter a parameter name for every parameter."
+            );
             return;
         }
 
-        if (!formData.asset_description.trim()) {
-            setError("Please enter asset description.");
+        const hasDuplicateNames =
+            new Set(
+                parameters.map((parameter) =>
+                    parameter.name
+                        .trim()
+                        .toLowerCase()
+                )
+            ).size !== parameters.length;
+
+        if (hasDuplicateNames) {
+            setError(
+                "Parameter names must be unique."
+            );
             return;
         }
 
-        if (!formData.required_date) {
-            setError("Please select required date.");
-            return;
-        }
+        const missingRequiredValue =
+            parameters.some(
+                (parameter) =>
+                    parameter.required &&
+                    !parameter.value.trim()
+            );
 
-        if (!formData.purchase_reason.trim()) {
-            setError("Please enter purchase reason.");
+        if (missingRequiredValue) {
+            setError(
+                "Please fill in all required parameters."
+            );
             return;
         }
 
         setIsSubmitting(true);
 
         try {
-            const requestData = {
-                asset: formData.asset.trim(),
-                asset_type: formData.asset_type.trim(),
-                asset_description:
-                    formData.asset_description.trim(),
-                required_date: formData.required_date,
-                purchase_reason:
-                    formData.purchase_reason.trim(),
-            };
+            /*
+             * Convert the dynamic parameter list into
+             * request_data.
+             *
+             * Example:
+             *
+             * {
+             *   "asset_name": "Dell Laptop",
+             *   "asset_type": "Laptop",
+             *   "repair_date": "2026-10-10"
+             * }
+             */
+
+            const requestData = parameters.reduce<
+                Record<string, string>
+            >((data, parameter) => {
+                data[parameter.name.trim()] =
+                    parameter.value.trim();
+
+                return data;
+            }, {});
 
             const response =
                 await createAssetPurchaseRequest(
@@ -141,10 +213,9 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
 
             onSuccess?.(response);
 
-            setFormData(initialForm);
+            setParameters([]);
             setReferenceFile(null);
 
-            // Reset file input
             const fileInput = document.getElementById(
                 "reference_file"
             ) as HTMLInputElement | null;
@@ -171,7 +242,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
     };
 
     const handleReset = () => {
-        setFormData(initialForm);
+        setParameters([]);
         setReferenceFile(null);
         setError("");
         setSuccessMessage("");
@@ -187,6 +258,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
 
     return (
         <div className="w-full">
+            {/* Header */}
             <div className="mb-6">
                 <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
@@ -202,7 +274,8 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                         </h1>
 
                         <p className="text-sm text-t">
-                            Create a new asset purchase request
+                            Add your own parameters for the
+                            purchase request
                         </p>
                     </div>
                 </div>
@@ -213,137 +286,323 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                 className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800"
             >
                 <div className="space-y-6 p-6">
+                    {/* Dynamic Parameters */}
+                    <div>
+                        <div className="mb-4 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-sm font-semibold text-s">
+                                    Request Parameters
+                                </h2>
 
-                    {/* Asset + Asset Type */}
+                                <p className="mt-1 text-xs text-t">
+                                    Add the information required
+                                    for this purchase request.
+                                </p>
+                            </div>
 
-                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-
-                        <div>
-                            <label
-                                htmlFor="asset"
-                                className="mb-2 block text-sm font-medium text-s"
+                            <button
+                                type="button"
+                                onClick={addParameter}
+                                disabled={isSubmitting}
+                                className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                                Asset
-                                <span className="ml-1 text-red-500">
-                                    *
-                                </span>
-                            </label>
-
-                            <input
-                                id="asset"
-                                name="asset"
-                                type="text"
-                                value={formData.asset}
-                                onChange={handleChange}
-                                placeholder="e.g. Dell Laptop 1500"
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-s outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900"
-                            />
+                                <Plus size={16} />
+                                Add Parameter
+                            </button>
                         </div>
 
-                        <div>
-                            <label
-                                htmlFor="asset_type"
-                                className="mb-2 block text-sm font-medium text-s"
-                            >
-                                Asset Type
-                                <span className="ml-1 text-red-500">
-                                    *
-                                </span>
-                            </label>
+                        {parameters.length === 0 ? (
+                            <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center dark:border-gray-600 dark:bg-gray-900/50">
+                                <Package
+                                    size={30}
+                                    className="mx-auto mb-3 text-gray-400"
+                                />
 
-                            <input
-                                id="asset_type"
-                                name="asset_type"
-                                type="text"
-                                value={formData.asset_type}
-                                onChange={handleChange}
-                                placeholder="e.g. IT Equipment"
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-t outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900"
-                            />
-                        </div>
+                                <p className="text-sm font-medium text-s">
+                                    No parameters added
+                                </p>
 
-                    </div>
+                                <p className="mt-1 text-xs text-t">
+                                    Click "Add Parameter" to
+                                    define the information
+                                    required for this request.
+                                </p>
 
-                    {/* Description */}
+                            </div>
+                        ) : (
+                            <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
+                                {/* Table Header */}
+                                <div className="hidden grid-cols-[minmax(180px,1.5fr)_160px_minmax(180px,2fr)_100px_48px] gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 md:grid dark:border-gray-700 dark:bg-gray-900/70">
+                                    <div className="text-xs font-semibold uppercase tracking-wide text-t">
+                                        Parameter Name
+                                    </div>
 
-                    <div>
-                        <label
-                            htmlFor="asset_description"
-                            className="mb-2 block text-sm font-medium text-s"
-                        >
-                            Asset Description
-                            <span className="ml-1 text-red-500">
-                                *
-                            </span>
-                        </label>
+                                    <div className="text-xs font-semibold uppercase tracking-wide text-t">
+                                        Type
+                                    </div>
 
-                        <textarea
-                            id="asset_description"
-                            name="asset_description"
-                            rows={4}
-                            value={formData.asset_description}
-                            onChange={handleChange}
-                            placeholder="Enter detailed description of the asset"
-                            className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-t outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900"
-                        />
-                    </div>
+                                    <div className="text-xs font-semibold uppercase tracking-wide text-t">
+                                        Value
+                                    </div>
 
-                    {/* Required Date */}
+                                    <div className="text-center text-xs font-semibold uppercase tracking-wide text-t">
+                                        Required
+                                    </div>
 
-                    <div>
-                        <label
-                            htmlFor="required_date"
-                            className="mb-2 block text-sm font-medium text-s"
-                        >
-                            Required Date
-                            <span className="ml-1 text-red-500">
-                                *
-                            </span>
-                        </label>
+                                    <div />
+                                </div>
 
-                        <div className="relative">
-                            <CalendarDays
-                                size={17}
-                                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                            />
+                                {/* Parameter Rows */}
+                                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                                    {parameters.map(
+                                        (
+                                            parameter,
+                                            index
+                                        ) => (
+                                            <div
+                                                key={
+                                                    parameter.id
+                                                }
+                                                className="grid grid-cols-1 gap-4 bg-white p-4 md:grid-cols-[minmax(180px,1.5fr)_160px_minmax(180px,2fr)_100px_48px] md:items-center md:gap-3 md:px-4 md:py-3 dark:bg-gray-800"
+                                            >
+                                                {/* Parameter Name */}
+                                                <div>
+                                                    <label
+                                                        htmlFor={`parameter-name-${parameter.id}`}
+                                                        className="mb-1.5 block text-xs font-medium text-t md:hidden"
+                                                    >
+                                                        Parameter
+                                                        Name
+                                                    </label>
 
-                            <input
-                                id="required_date"
-                                name="required_date"
-                                type="date"
-                                value={formData.required_date}
-                                onChange={handleChange}
-                                className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-t outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900"
-                            />
-                        </div>
-                    </div>
+                                                    <input
+                                                        id={`parameter-name-${parameter.id}`}
+                                                        type="text"
+                                                        value={
+                                                            parameter.name
+                                                        }
+                                                        onChange={(
+                                                            e
+                                                        ) =>
+                                                            updateParameter(
+                                                                parameter.id,
+                                                                "name",
+                                                                e
+                                                                    .target
+                                                                    .value
+                                                            )
+                                                        }
+                                                        placeholder="e.g. Asset Name"
+                                                        disabled={
+                                                            isSubmitting
+                                                        }
+                                                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-s outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900"
+                                                    />
+                                                </div>
 
-                    {/* Purchase Reason */}
+                                                {/* Type */}
+                                                <div>
+                                                    <label
+                                                        htmlFor={`parameter-type-${parameter.id}`}
+                                                        className="mb-1.5 block text-xs font-medium text-t md:hidden"
+                                                    >
+                                                        Type
+                                                    </label>
 
-                    <div>
-                        <label
-                            htmlFor="purchase_reason"
-                            className="mb-2 block text-sm font-medium text-s"
-                        >
-                            Purchase Reason
-                            <span className="ml-1 text-red-500">
-                                *
-                            </span>
-                        </label>
+                                                    <select
+                                                        id={`parameter-type-${parameter.id}`}
+                                                        value={
+                                                            parameter.type
+                                                        }
+                                                        onChange={(
+                                                            e
+                                                        ) =>
+                                                            updateParameter(
+                                                                parameter.id,
+                                                                "type",
+                                                                e
+                                                                    .target
+                                                                    .value as ParameterType
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            isSubmitting
+                                                        }
+                                                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-s outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900"
+                                                    >
+                                                        <option value="text">
+                                                            Text
+                                                        </option>
 
-                        <textarea
-                            id="purchase_reason"
-                            name="purchase_reason"
-                            rows={3}
-                            value={formData.purchase_reason}
-                            onChange={handleChange}
-                            placeholder="e.g. Office Requirement"
-                            className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-t outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-900"
-                        />
+                                                        <option value="textarea">
+                                                            Long
+                                                            Text
+                                                        </option>
+
+                                                        <option value="number">
+                                                            Number
+                                                        </option>
+
+                                                        <option value="date">
+                                                            Date
+                                                        </option>
+                                                    </select>
+                                                </div>
+
+                                                {/* Value */}
+                                                <div>
+                                                    <label
+                                                        htmlFor={`parameter-value-${parameter.id}`}
+                                                        className="mb-1.5 block text-xs font-medium text-t md:hidden"
+                                                    >
+                                                        Value
+                                                        {parameter.required && (
+                                                            <span className="ml-1 text-red-500">
+                                                                *
+                                                            </span>
+                                                        )}
+                                                    </label>
+
+                                                    <div className="relative">
+                                                        {parameter.type ===
+                                                            "date" && (
+                                                            <CalendarDays
+                                                                size={
+                                                                    16
+                                                                }
+                                                                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                                                            />
+                                                        )}
+
+                                                        {parameter.type ===
+                                                        "textarea" ? (
+                                                            <textarea
+                                                                id={`parameter-value-${parameter.id}`}
+                                                                rows={
+                                                                    1
+                                                                }
+                                                                value={
+                                                                    parameter.value
+                                                                }
+                                                                onChange={(
+                                                                    e
+                                                                ) =>
+                                                                    updateParameter(
+                                                                        parameter.id,
+                                                                        "value",
+                                                                        e
+                                                                            .target
+                                                                            .value
+                                                                    )
+                                                                }
+                                                                placeholder="Enter value"
+                                                                disabled={
+                                                                    isSubmitting
+                                                                }
+                                                                className="w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-s outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900"
+                                                            />
+                                                        ) : (
+                                                            <input
+                                                                id={`parameter-value-${parameter.id}`}
+                                                                type={
+                                                                    parameter.type
+                                                                }
+                                                                value={
+                                                                    parameter.value
+                                                                }
+                                                                onChange={(
+                                                                    e
+                                                                ) =>
+                                                                    updateParameter(
+                                                                        parameter.id,
+                                                                        "value",
+                                                                        e
+                                                                            .target
+                                                                            .value
+                                                                    )
+                                                                }
+                                                                placeholder="Enter value"
+                                                                disabled={
+                                                                    isSubmitting
+                                                                }
+                                                                className={`w-full rounded-lg border border-gray-300 bg-white py-2 pr-3 text-sm text-s outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900 ${
+                                                                    parameter.type ===
+                                                                    "date"
+                                                                        ? "pl-9"
+                                                                        : "pl-3"
+                                                                }`}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Required */}
+                                                <div className="flex items-center md:justify-center">
+                                                    <label
+                                                        htmlFor={`parameter-required-${parameter.id}`}
+                                                        className="flex cursor-pointer items-center gap-2"
+                                                    >
+                                                        <input
+                                                            id={`parameter-required-${parameter.id}`}
+                                                            type="checkbox"
+                                                            checked={
+                                                                parameter.required
+                                                            }
+                                                            onChange={(
+                                                                e
+                                                            ) =>
+                                                                updateParameter(
+                                                                    parameter.id,
+                                                                    "required",
+                                                                    e
+                                                                        .target
+                                                                        .checked
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                isSubmitting
+                                                            }
+                                                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600"
+                                                        />
+
+                                                        <span className="text-sm text-t">
+                                                            Required
+                                                        </span>
+                                                    </label>
+                                                </div>
+
+                                                {/* Delete */}
+                                                <div className="flex justify-end md:justify-center">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            removeParameter(
+                                                                parameter.id
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            isSubmitting
+                                                        }
+                                                        className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-900/20"
+                                                        title={`Remove parameter ${index + 1}`}
+                                                        aria-label={`Remove parameter ${index + 1}`}
+                                                    >
+                                                        <Trash2
+                                                            size={
+                                                                16
+                                                            }
+                                                        />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Reference File */}
-
                     <div>
                         <label
                             htmlFor="reference_file"
@@ -356,7 +615,6 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                         </label>
 
                         <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-4 transition hover:border-blue-400 dark:border-gray-600 dark:bg-gray-900/50 dark:hover:border-blue-500">
-
                             {!referenceFile ? (
                                 <label
                                     htmlFor="reference_file"
@@ -371,12 +629,15 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
 
                                     <div>
                                         <p className="text-sm font-medium text-s dark:text-white">
-                                            Upload reference file
+                                            Upload reference
+                                            file
                                         </p>
 
                                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                            PDF, DOC, DOCX, XLS, XLSX, JPG,
-                                            PNG or other supported files
+                                            PDF, DOC, DOCX,
+                                            XLS, XLSX, JPG,
+                                            PNG or other
+                                            supported files
                                         </p>
                                     </div>
 
@@ -384,12 +645,13 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                                         id="reference_file"
                                         type="file"
                                         className="hidden"
-                                        onChange={handleFileChange}
+                                        onChange={
+                                            handleFileChange
+                                        }
                                     />
                                 </label>
                             ) : (
                                 <div className="flex items-center justify-between gap-4 rounded-lg bg-white p-3 shadow-sm dark:bg-gray-800">
-
                                     <div className="flex min-w-0 items-center gap-3">
                                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
                                             <FileUp
@@ -400,7 +662,9 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
 
                                         <div className="min-w-0">
                                             <p className="truncate text-sm font-medium text-s dark:text-white">
-                                                {referenceFile.name}
+                                                {
+                                                    referenceFile.name
+                                                }
                                             </p>
 
                                             <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -408,7 +672,9 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                                                     referenceFile.size /
                                                     1024 /
                                                     1024
-                                                ).toFixed(2)}{" "}
+                                                ).toFixed(
+                                                    2
+                                                )}{" "}
                                                 MB
                                             </p>
                                         </div>
@@ -416,10 +682,15 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
 
                                     <button
                                         type="button"
-                                        onClick={removeFile}
-                                        disabled={isSubmitting}
+                                        onClick={
+                                            removeFile
+                                        }
+                                        disabled={
+                                            isSubmitting
+                                        }
                                         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-900/20"
                                         title="Remove file"
+                                        aria-label="Remove file"
                                     >
                                         <X size={17} />
                                     </button>
@@ -429,7 +700,6 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                     </div>
 
                     {/* Error */}
-
                     {error && (
                         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400">
                             {error}
@@ -437,7 +707,6 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                     )}
 
                     {/* Success */}
-
                     {successMessage && (
                         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-400">
                             {successMessage}
@@ -446,7 +715,6 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                 </div>
 
                 {/* Actions */}
-
                 <div className="flex justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
                     <button
                         type="button"

@@ -25,13 +25,11 @@ export const createAssetPurchaseRequest = async (
 ): Promise<CreateAssetPurchaseRequestResponse> => {
     const formData = new FormData();
 
-    // Backend expects request_data as a JSON string
     formData.append(
         "request_data",
         JSON.stringify(requestData)
     );
 
-    // Optional reference file
     if (referenceFile) {
         formData.append(
             "reference_file",
