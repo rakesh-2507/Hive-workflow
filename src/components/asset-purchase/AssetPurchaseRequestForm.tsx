@@ -1,4 +1,8 @@
-import { useState } from "react";
+import {
+    useEffect,
+    useState,
+} from "react";
+
 import {
     CalendarDays,
     FileUp,
@@ -9,7 +13,16 @@ import {
     X,
 } from "lucide-react";
 
-import { createAssetPurchaseRequest } from "../../api/assetPurchase";
+import { getProcessList } from "../../api/process";
+
+import type { ProcessListItem } from "../../types/process";
+
+import {
+    createAssetPurchaseRequest,
+    getAssetProcessTypes,
+} from "../../api/assetPurchase";
+
+import type { AssetProcessType } from "../../api/assetPurchase";
 
 type ParameterType =
     | "text"
@@ -41,13 +54,33 @@ const createParameter = (): RequestParameter => ({
     required: false,
 });
 
-function AssetPurchaseRequestForm({ onSuccess }: Props) {
+function AssetPurchaseRequestForm({
+    onSuccess,
+}: Props) {
     const [parameters, setParameters] = useState<
         RequestParameter[]
     >([]);
 
     const [referenceFile, setReferenceFile] =
         useState<File | null>(null);
+
+    const [requestType, setRequestType] =
+        useState("");
+
+    const [processId, setProcessId] =
+        useState<number | "">("");
+
+    const [processes, setProcesses] =
+        useState<ProcessListItem[]>([]);
+
+    const [requestTypes, setRequestTypes] =
+        useState<AssetProcessType[]>([]);
+
+    const [isLoadingProcesses, setIsLoadingProcesses] =
+        useState(false);
+
+    const [isLoadingRequestTypes, setIsLoadingRequestTypes] =
+        useState(false);
 
     const [isSubmitting, setIsSubmitting] =
         useState(false);
@@ -56,6 +89,94 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
     const [successMessage, setSuccessMessage] =
         useState("");
 
+    /*
+     * ============================================================
+     * LOAD PROCESS LIST
+     * ============================================================
+     */
+    useEffect(() => {
+        const loadProcesses = async () => {
+            setIsLoadingProcesses(true);
+
+            try {
+                const response = await getProcessList();
+
+                if (response.success === false) {
+                    throw new Error(
+                        "Failed to load process list."
+                    );
+                }
+
+                setProcesses(response.data ?? []);
+            } catch (err: unknown) {
+                console.error(
+                    "Failed to load processes:",
+                    err
+                );
+
+                if (err instanceof Error) {
+                    setError(err.message);
+                } else {
+                    setError(
+                        "Failed to load process list."
+                    );
+                }
+            } finally {
+                setIsLoadingProcesses(false);
+            }
+        };
+
+        void loadProcesses();
+    }, []);
+
+    /*
+     * ============================================================
+     * LOAD ASSET PROCESS TYPES
+     * ============================================================
+     */
+    useEffect(() => {
+        const loadRequestTypes = async () => {
+            setIsLoadingRequestTypes(true);
+
+            try {
+                const response =
+                    await getAssetProcessTypes();
+
+                if (response.success === false) {
+                    throw new Error(
+                        "Failed to load request types."
+                    );
+                }
+
+                setRequestTypes(
+                    response.data ?? []
+                );
+            } catch (err: unknown) {
+                console.error(
+                    "Failed to load request types:",
+                    err
+                );
+
+                if (err instanceof Error) {
+                    setError(err.message);
+                } else {
+                    setError(
+                        "Failed to load request types."
+                    );
+                }
+            } finally {
+                setIsLoadingRequestTypes(false);
+            }
+        };
+
+        void loadRequestTypes();
+    }, []);
+
+    /*
+     * ============================================================
+     * ADD PARAMETER
+     * ============================================================
+     */
     const addParameter = () => {
         setParameters((prev) => [
             ...prev,
@@ -66,10 +187,16 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
         setSuccessMessage("");
     };
 
+    /*
+     * ============================================================
+     * REMOVE PARAMETER
+     * ============================================================
+     */
     const removeParameter = (id: string) => {
         setParameters((prev) =>
             prev.filter(
-                (parameter) => parameter.id !== id
+                (parameter) =>
+                    parameter.id !== id
             )
         );
 
@@ -77,6 +204,11 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
         setSuccessMessage("");
     };
 
+    /*
+     * ============================================================
+     * UPDATE PARAMETER
+     * ============================================================
+     */
     const updateParameter = (
         id: string,
         field: keyof RequestParameter,
@@ -86,9 +218,9 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
             prev.map((parameter) =>
                 parameter.id === id
                     ? {
-                          ...parameter,
-                          [field]: value,
-                      }
+                        ...parameter,
+                        [field]: value,
+                    }
                     : parameter
             )
         );
@@ -97,28 +229,48 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
         setSuccessMessage("");
     };
 
+    /*
+     * ============================================================
+     * FILE CHANGE
+     * ============================================================
+     */
     const handleFileChange = (
         e: React.ChangeEvent<HTMLInputElement>
     ) => {
-        const file = e.target.files?.[0] ?? null;
+        const file =
+            e.target.files?.[0] ?? null;
 
         setReferenceFile(file);
         setError("");
         setSuccessMessage("");
     };
 
+    /*
+     * ============================================================
+     * REMOVE FILE
+     * ============================================================
+     */
     const removeFile = () => {
         setReferenceFile(null);
 
-        const fileInput = document.getElementById(
-            "reference_file"
-        ) as HTMLInputElement | null;
+        const fileInput =
+            document.getElementById(
+                "reference_file"
+            ) as HTMLInputElement | null;
 
         if (fileInput) {
             fileInput.value = "";
         }
+
+        setError("");
+        setSuccessMessage("");
     };
 
+    /*
+     * ============================================================
+     * SUBMIT
+     * ============================================================
+     */
     const handleSubmit = async (
         e: React.FormEvent<HTMLFormElement>
     ) => {
@@ -127,6 +279,29 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
         setError("");
         setSuccessMessage("");
 
+        /*
+         * Validate request type.
+         */
+        if (!requestType) {
+            setError(
+                "Please select a request type."
+            );
+            return;
+        }
+
+        /*
+         * Validate process.
+         */
+        if (processId === "") {
+            setError(
+                "Please select a process."
+            );
+            return;
+        }
+
+        /*
+         * Validate parameters.
+         */
         if (parameters.length === 0) {
             setError(
                 "Please add at least one request parameter."
@@ -134,9 +309,14 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
             return;
         }
 
-        const hasEmptyName = parameters.some(
-            (parameter) => !parameter.name.trim()
-        );
+        /*
+         * Validate parameter names.
+         */
+        const hasEmptyName =
+            parameters.some(
+                (parameter) =>
+                    !parameter.name.trim()
+            );
 
         if (hasEmptyName) {
             setError(
@@ -145,14 +325,19 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
             return;
         }
 
+        /*
+         * Check duplicate parameter names.
+         */
+        const parameterNames =
+            parameters.map((parameter) =>
+                parameter.name
+                    .trim()
+                    .toLowerCase()
+            );
+
         const hasDuplicateNames =
-            new Set(
-                parameters.map((parameter) =>
-                    parameter.name
-                        .trim()
-                        .toLowerCase()
-                )
-            ).size !== parameters.length;
+            new Set(parameterNames).size !==
+            parameterNames.length;
 
         if (hasDuplicateNames) {
             setError(
@@ -161,6 +346,9 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
             return;
         }
 
+        /*
+         * Check required parameter values.
+         */
         const missingRequiredValue =
             parameters.some(
                 (parameter) =>
@@ -179,53 +367,76 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
 
         try {
             /*
-             * Convert the dynamic parameter list into
+             * Convert dynamic parameters into
              * request_data.
              *
              * Example:
              *
              * {
-             *   "asset_name": "Dell Laptop",
-             *   "asset_type": "Laptop",
-             *   "repair_date": "2026-10-10"
+             *     asset_name: "Dell Laptop",
+             *     asset_type: "Laptop",
+             *     quantity: "2"
              * }
              */
+            const requestData =
+                parameters.reduce<
+                    Record<string, string>
+                >((data, parameter) => {
+                    data[
+                        parameter.name.trim()
+                    ] =
+                        parameter.value.trim();
 
-            const requestData = parameters.reduce<
-                Record<string, string>
-            >((data, parameter) => {
-                data[parameter.name.trim()] =
-                    parameter.value.trim();
+                    return data;
+                }, {});
 
-                return data;
-            }, {});
-
+            /*
+             * Create asset purchase request.
+             *
+             * Multipart form data:
+             *
+             * request_type
+             * process_id
+             * request_data
+             * reference_file
+             */
             const response =
                 await createAssetPurchaseRequest(
+                    requestType,
+                    processId,
                     requestData,
                     referenceFile
                 );
 
             setSuccessMessage(
                 response.message ||
-                    "Asset Purchase Request created successfully."
+                "Asset Request created successfully."
             );
 
             onSuccess?.(response);
 
+            /*
+             * Clear parameter and file fields
+             * after successful creation.
+             *
+             * Keep request type and process selected
+             * so the user can create another request
+             * using the same workflow configuration.
+             */
             setParameters([]);
             setReferenceFile(null);
 
-            const fileInput = document.getElementById(
-                "reference_file"
-            ) as HTMLInputElement | null;
+            const fileInput =
+                document.getElementById(
+                    "reference_file"
+                ) as HTMLInputElement | null;
 
             if (fileInput) {
                 fileInput.value = "";
             }
         } catch (err: unknown) {
             console.error(
-                "Asset purchase request error:",
+                "Asset request error:",
                 err
             );
 
@@ -233,7 +444,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                 setError(err.message);
             } else {
                 setError(
-                    "Failed to create asset purchase request."
+                    "Failed to create asset request."
                 );
             }
         } finally {
@@ -241,15 +452,23 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
         }
     };
 
+    /*
+     * ============================================================
+     * RESET
+     * ============================================================
+     */
     const handleReset = () => {
         setParameters([]);
         setReferenceFile(null);
+        setRequestType("");
+        setProcessId("");
         setError("");
         setSuccessMessage("");
 
-        const fileInput = document.getElementById(
-            "reference_file"
-        ) as HTMLInputElement | null;
+        const fileInput =
+            document.getElementById(
+                "reference_file"
+            ) as HTMLInputElement | null;
 
         if (fileInput) {
             fileInput.value = "";
@@ -258,24 +477,27 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
 
     return (
         <div className="w-full">
-            {/* Header */}
+            {/* =====================================================
+                HEADER
+            ====================================================== */}
             <div className="mb-6">
                 <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
                         <Package
                             size={20}
-                            className="text-s"
+                            className="text-blue-600 dark:text-blue-400"
                         />
                     </div>
 
                     <div>
                         <h1 className="text-xl font-semibold text-s">
-                            Asset Purchase Request
+                            Asset Request
                         </h1>
 
                         <p className="text-sm text-t">
-                            Add your own parameters for the
-                            purchase request
+                            Select the request type and
+                            workflow process, then add
+                            your request parameters.
                         </p>
                     </div>
                 </div>
@@ -286,7 +508,150 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                 className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800"
             >
                 <div className="space-y-6 p-6">
-                    {/* Dynamic Parameters */}
+                    {/* =================================================
+                        REQUEST CONFIGURATION
+                    ================================================== */}
+                    <div>
+                        <div className="mb-4">
+                            <h2 className="text-sm font-semibold text-s">
+                                Request Configuration
+                            </h2>
+
+                            <p className="mt-1 text-xs text-t">
+                                Select the request type and
+                                workflow process.
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            {/* =================================================
+                                REQUEST TYPE
+                            ================================================== */}
+                            <div>
+                                <label
+                                    htmlFor="request_type"
+                                    className="mb-2 block text-sm font-medium text-s"
+                                >
+                                    Request Type
+                                    <span className="ml-1 text-red-500">
+                                        *
+                                    </span>
+                                </label>
+
+                                <select
+                                    id="request_type"
+                                    value={requestType}
+                                    onChange={(e) => {
+                                        setRequestType(
+                                            e.target.value
+                                        );
+
+                                        setError("");
+                                        setSuccessMessage("");
+                                    }}
+                                    disabled={
+                                        isSubmitting ||
+                                        isLoadingRequestTypes
+                                    }
+                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-s outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900"
+                                >
+                                    <option value="">
+                                        {isLoadingRequestTypes
+                                            ? "Loading request types..."
+                                            : "Select request type"}
+                                    </option>
+
+                                    {requestTypes.map(
+                                        (type) => (
+                                            <option
+                                                key={String(
+                                                    type.id
+                                                )}
+                                                value={String(
+                                                    type.id
+                                                )}
+                                            >
+                                                {type.name}
+                                            </option>
+                                        )
+                                    )}
+                                </select>
+                            </div>
+
+                            {/* =================================================
+                                PROCESS
+                            ================================================== */}
+                            <div>
+                                <label
+                                    htmlFor="process_id"
+                                    className="mb-2 block text-sm font-medium text-s"
+                                >
+                                    Process
+                                    <span className="ml-1 text-red-500">
+                                        *
+                                    </span>
+                                </label>
+
+                                <select
+                                    id="process_id"
+                                    value={
+                                        processId === ""
+                                            ? ""
+                                            : String(
+                                                processId
+                                            )
+                                    }
+                                    onChange={(e) => {
+                                        const value =
+                                            e.target.value;
+
+                                        setProcessId(
+                                            value === ""
+                                                ? ""
+                                                : Number(
+                                                    value
+                                                )
+                                        );
+
+                                        setError("");
+                                        setSuccessMessage("");
+                                    }}
+                                    disabled={
+                                        isSubmitting ||
+                                        isLoadingProcesses
+                                    }
+                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-s outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900"
+                                >
+                                    <option value="">
+                                        {isLoadingProcesses
+                                            ? "Loading processes..."
+                                            : "Select process"}
+                                    </option>
+
+                                    {processes.map(
+                                        (process) => (
+                                            <option
+                                                key={
+                                                    process.Processid
+                                                }
+                                                value={
+                                                    process.Processid
+                                                }
+                                            >
+                                                {
+                                                    process.ProcessName
+                                                }
+                                            </option>
+                                        )
+                                    )}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* =================================================
+                        DYNAMIC PARAMETERS
+                    ================================================== */}
                     <div>
                         <div className="mb-4 flex items-center justify-between">
                             <div>
@@ -327,7 +692,6 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                                     define the information
                                     required for this request.
                                 </p>
-
                             </div>
                         ) : (
                             <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
@@ -387,8 +751,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                                                             updateParameter(
                                                                 parameter.id,
                                                                 "name",
-                                                                e
-                                                                    .target
+                                                                e.target
                                                                     .value
                                                             )
                                                         }
@@ -420,8 +783,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                                                             updateParameter(
                                                                 parameter.id,
                                                                 "type",
-                                                                e
-                                                                    .target
+                                                                e.target
                                                                     .value as ParameterType
                                                             )
                                                         }
@@ -456,6 +818,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                                                         className="mb-1.5 block text-xs font-medium text-t md:hidden"
                                                     >
                                                         Value
+
                                                         {parameter.required && (
                                                             <span className="ml-1 text-red-500">
                                                                 *
@@ -475,12 +838,10 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                                                         )}
 
                                                         {parameter.type ===
-                                                        "textarea" ? (
+                                                            "textarea" ? (
                                                             <textarea
                                                                 id={`parameter-value-${parameter.id}`}
-                                                                rows={
-                                                                    1
-                                                                }
+                                                                rows={1}
                                                                 value={
                                                                     parameter.value
                                                                 }
@@ -490,8 +851,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                                                                     updateParameter(
                                                                         parameter.id,
                                                                         "value",
-                                                                        e
-                                                                            .target
+                                                                        e.target
                                                                             .value
                                                                     )
                                                                 }
@@ -516,8 +876,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                                                                     updateParameter(
                                                                         parameter.id,
                                                                         "value",
-                                                                        e
-                                                                            .target
+                                                                        e.target
                                                                             .value
                                                                     )
                                                                 }
@@ -554,8 +913,7 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                                                                 updateParameter(
                                                                     parameter.id,
                                                                     "required",
-                                                                    e
-                                                                        .target
+                                                                    e.target
                                                                         .checked
                                                                 )
                                                             }
@@ -602,13 +960,16 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                         )}
                     </div>
 
-                    {/* Reference File */}
+                    {/* =================================================
+                        REFERENCE FILE
+                    ================================================== */}
                     <div>
                         <label
                             htmlFor="reference_file"
                             className="mb-2 block text-sm font-medium text-s"
                         >
                             Reference File
+
                             <span className="ml-2 text-xs font-normal text-gray-400">
                                 Optional
                             </span>
@@ -699,14 +1060,18 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                         </div>
                     </div>
 
-                    {/* Error */}
+                    {/* =================================================
+                        ERROR
+                    ================================================== */}
                     {error && (
                         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400">
                             {error}
                         </div>
                     )}
 
-                    {/* Success */}
+                    {/* =================================================
+                        SUCCESS
+                    ================================================== */}
                     {successMessage && (
                         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-900/50 dark:bg-green-900/20 dark:text-green-400">
                             {successMessage}
@@ -714,7 +1079,9 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
                     )}
                 </div>
 
-                {/* Actions */}
+                {/* =====================================================
+                    ACTIONS
+                ====================================================== */}
                 <div className="flex justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
                     <button
                         type="button"
@@ -727,7 +1094,11 @@ function AssetPurchaseRequestForm({ onSuccess }: Props) {
 
                     <button
                         type="submit"
-                        disabled={isSubmitting}
+                        disabled={
+                            isSubmitting ||
+                            isLoadingProcesses ||
+                            isLoadingRequestTypes
+                        }
                         className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         <Send size={16} />
