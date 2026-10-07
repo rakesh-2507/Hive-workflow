@@ -5,7 +5,10 @@ import type {
   CreateAssetPurchaseRequestResponse,
 } from "../types/assetPurchase";
 
-import type { GetAssetPurchaseTaskResponse } from "../types/task";
+import type {
+  GetAssetPurchaseTaskResponse,
+  GetAssetPurchaseTasksResponse,
+} from "../types/task";
 
 /**
  * ============================================================
@@ -32,21 +35,12 @@ export const createAssetPurchaseRequest = async (
 ): Promise<CreateAssetPurchaseRequestResponse> => {
   const formData = new FormData();
 
-  formData.append(
-    "process_id",
-    String(processId),
-  );
+  formData.append("process_id", String(processId));
 
-  formData.append(
-    "request_data",
-    JSON.stringify(requestData),
-  );
+  formData.append("request_data", JSON.stringify(requestData));
 
   if (referenceFile) {
-    formData.append(
-      "reference_file",
-      referenceFile,
-    );
+    formData.append("reference_file", referenceFile);
   }
 
   return apiRequest<CreateAssetPurchaseRequestResponse>(
@@ -76,6 +70,22 @@ export const getAssetPurchaseTask = async (
   );
 };
 
+/**
+ * ============================================================
+ * GET ALL ASSET TASKS
+ * ============================================================
+ *
+ * GET /api/asset-purchase/tasks
+ */
+export const getAssetPurchaseTasks =
+  async (): Promise<GetAssetPurchaseTasksResponse> => {
+    return apiRequest<GetAssetPurchaseTasksResponse>(
+      "/api/asset-purchase/tasks",
+      {
+        method: "GET",
+      },
+    );
+  };
 /**
  * ============================================================
  * ASSET PURCHASE TRACKING
@@ -190,10 +200,7 @@ export interface AssetProcessTypesResponse {
  */
 export const getAssetProcessTypes =
   async (): Promise<AssetProcessTypesResponse> => {
-    return apiRequest<AssetProcessTypesResponse>(
-      "/api/asset-process-types",
-      {
-        method: "GET",
-      },
-    );
+    return apiRequest<AssetProcessTypesResponse>("/api/asset-process-types", {
+      method: "GET",
+    });
   };

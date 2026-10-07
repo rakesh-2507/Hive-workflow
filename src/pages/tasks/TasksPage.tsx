@@ -497,10 +497,7 @@ function TasksPage() {
                             </div>
 
                             {" "}
-                            {isEmployee &&
-                                selectedTask?.document_no &&
-                                (selectedTask.document_type === "AssetPurchaseRequest" ||
-                                    selectedTask.task_type === "Asset Purchase Request") && (
+                            {isEmployee && selectedTask?.document_no && (
                                     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                                         {" "}
                                         <button
@@ -522,7 +519,7 @@ function TasksPage() {
                                                     {" "}
                                                     <h2 className="text-sm font-semibold text-s">
                                                         {" "}
-                                                        Asset Purchase Tracking{" "}
+                                                        Asset Request Tracking{" "}
                                                     </h2>{" "}
                                                     <p className="mt-1 text-xs text-t">
                                                         {" "}
