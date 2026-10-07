@@ -26,17 +26,11 @@ import type { GetAssetPurchaseTaskResponse } from "../types/task";
  * - reference_file: file
  */
 export const createAssetPurchaseRequest = async (
-  requestType: string,
   processId: number,
   requestData: AssetPurchaseRequestData,
   referenceFile?: File | null,
 ): Promise<CreateAssetPurchaseRequestResponse> => {
   const formData = new FormData();
-
-  formData.append(
-    "request_type",
-    requestType,
-  );
 
   formData.append(
     "process_id",

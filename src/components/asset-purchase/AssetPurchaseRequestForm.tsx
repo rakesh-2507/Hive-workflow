@@ -19,10 +19,7 @@ import type { ProcessListItem } from "../../types/process";
 
 import {
     createAssetPurchaseRequest,
-    getAssetProcessTypes,
 } from "../../api/assetPurchase";
-
-import type { AssetProcessType } from "../../api/assetPurchase";
 
 type ParameterType =
     | "text"
@@ -64,22 +61,13 @@ function AssetPurchaseRequestForm({
     const [referenceFile, setReferenceFile] =
         useState<File | null>(null);
 
-    const [requestType, setRequestType] =
-        useState("");
-
     const [processId, setProcessId] =
         useState<number | "">("");
 
     const [processes, setProcesses] =
         useState<ProcessListItem[]>([]);
 
-    const [requestTypes, setRequestTypes] =
-        useState<AssetProcessType[]>([]);
-
     const [isLoadingProcesses, setIsLoadingProcesses] =
-        useState(false);
-
-    const [isLoadingRequestTypes, setIsLoadingRequestTypes] =
         useState(false);
 
     const [isSubmitting, setIsSubmitting] =
@@ -127,49 +115,6 @@ function AssetPurchaseRequestForm({
         };
 
         void loadProcesses();
-    }, []);
-
-    /*
-     * ============================================================
-     * LOAD ASSET PROCESS TYPES
-     * ============================================================
-     */
-    useEffect(() => {
-        const loadRequestTypes = async () => {
-            setIsLoadingRequestTypes(true);
-
-            try {
-                const response =
-                    await getAssetProcessTypes();
-
-                if (response.success === false) {
-                    throw new Error(
-                        "Failed to load request types."
-                    );
-                }
-
-                setRequestTypes(
-                    response.data ?? []
-                );
-            } catch (err: unknown) {
-                console.error(
-                    "Failed to load request types:",
-                    err
-                );
-
-                if (err instanceof Error) {
-                    setError(err.message);
-                } else {
-                    setError(
-                        "Failed to load request types."
-                    );
-                }
-            } finally {
-                setIsLoadingRequestTypes(false);
-            }
-        };
-
-        void loadRequestTypes();
     }, []);
 
     /*
@@ -279,15 +224,6 @@ function AssetPurchaseRequestForm({
         setError("");
         setSuccessMessage("");
 
-        /*
-         * Validate request type.
-         */
-        if (!requestType) {
-            setError(
-                "Please select a request type."
-            );
-            return;
-        }
 
         /*
          * Validate process.
@@ -402,7 +338,6 @@ function AssetPurchaseRequestForm({
              */
             const response =
                 await createAssetPurchaseRequest(
-                    requestType,
                     processId,
                     requestData,
                     referenceFile
@@ -460,7 +395,6 @@ function AssetPurchaseRequestForm({
     const handleReset = () => {
         setParameters([]);
         setReferenceFile(null);
-        setRequestType("");
         setProcessId("");
         setError("");
         setSuccessMessage("");
@@ -524,63 +458,6 @@ function AssetPurchaseRequestForm({
                         </div>
 
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            {/* =================================================
-                                REQUEST TYPE
-                            ================================================== */}
-                            <div>
-                                <label
-                                    htmlFor="request_type"
-                                    className="mb-2 block text-sm font-medium text-s"
-                                >
-                                    Request Type
-                                    <span className="ml-1 text-red-500">
-                                        *
-                                    </span>
-                                </label>
-
-                                <select
-                                    id="request_type"
-                                    value={requestType}
-                                    onChange={(e) => {
-                                        setRequestType(
-                                            e.target.value
-                                        );
-
-                                        setError("");
-                                        setSuccessMessage("");
-                                    }}
-                                    disabled={
-                                        isSubmitting ||
-                                        isLoadingRequestTypes
-                                    }
-                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-s outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900"
-                                >
-                                    <option value="">
-                                        {isLoadingRequestTypes
-                                            ? "Loading request types..."
-                                            : "Select request type"}
-                                    </option>
-
-                                    {requestTypes.map(
-                                        (type) => (
-                                            <option
-                                                key={String(
-                                                    type.id
-                                                )}
-                                                value={String(
-                                                    type.id
-                                                )}
-                                            >
-                                                {type.name}
-                                            </option>
-                                        )
-                                    )}
-                                </select>
-                            </div>
-
-                            {/* =================================================
-                                PROCESS
-                            ================================================== */}
                             <div>
                                 <label
                                     htmlFor="process_id"
@@ -829,13 +706,13 @@ function AssetPurchaseRequestForm({
                                                     <div className="relative">
                                                         {parameter.type ===
                                                             "date" && (
-                                                            <CalendarDays
-                                                                size={
-                                                                    16
-                                                                }
-                                                                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                                                            />
-                                                        )}
+                                                                <CalendarDays
+                                                                    size={
+                                                                        16
+                                                                    }
+                                                                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                                                                />
+                                                            )}
 
                                                         {parameter.type ===
                                                             "textarea" ? (
@@ -884,12 +761,11 @@ function AssetPurchaseRequestForm({
                                                                 disabled={
                                                                     isSubmitting
                                                                 }
-                                                                className={`w-full rounded-lg border border-gray-300 bg-white py-2 pr-3 text-sm text-s outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900 ${
-                                                                    parameter.type ===
-                                                                    "date"
+                                                                className={`w-full rounded-lg border border-gray-300 bg-white py-2 pr-3 text-sm text-s outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900 ${parameter.type ===
+                                                                        "date"
                                                                         ? "pl-9"
                                                                         : "pl-3"
-                                                                }`}
+                                                                    }`}
                                                             />
                                                         )}
                                                     </div>
@@ -1096,9 +972,7 @@ function AssetPurchaseRequestForm({
                         type="submit"
                         disabled={
                             isSubmitting ||
-                            isLoadingProcesses ||
-                            isLoadingRequestTypes
-                        }
+                            isLoadingProcesses}
                         className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         <Send size={16} />

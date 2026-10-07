@@ -211,9 +211,9 @@ function TaskDetails({
     );
   }
 
-  const assetDocumentNo =
-    assetTask?.document?.document_no ||
-    task.document_no;
+const documentNo =
+  assetTask?.document?.document_no ||
+  task.document_no;
 
   const referenceFileUrl =
     assetTask?.document?.document_url;
@@ -489,11 +489,11 @@ function TaskDetails({
               {task.assigned_by ?? "N/A"}
             </p>
 
-            {assetDocumentNo && (
+            {documentNo && (
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Document :{" "}
                 <span className="text-gray-900 dark:text-white">
-                  #{assetDocumentNo}
+                  #{documentNo}
                 </span>
               </p>
             )}
@@ -812,8 +812,7 @@ function TaskDetails({
                           QUOTES
                       ================================================== */}
 
-                      {assetDocumentNo &&
-                        isAssetPurchaseTask &&
+                      {documentNo &&
                         (isAssetExecutive ||
                           isSeniorAssetManager) && (
                           <section>
@@ -823,9 +822,9 @@ function TaskDetails({
 
                             <div className="mt-4">
                               <QuoteDetailsAccordion
-                                key={`${task.task_id}-${assetDocumentNo}`}
+                                key={`${task.task_id}-${documentNo}`}
                                 documentNo={
-                                  assetDocumentNo
+                                  documentNo
                                 }
                                 taskId={task.task_id}
 
